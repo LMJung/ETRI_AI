@@ -22,6 +22,15 @@ ALLCALL = 0x01
 OUTDRV = 0x04
 RESET = 0x00
 
+# ▼▼▼ 추가: 모듈 차원에서 I2C 버스 생성 (ESP32: SCL=21, SDA=22) ▼▼▼
+I2C_SCL_PIN = 21
+I2C_SDA_PIN = 22
+I2C_FREQ = 400000
+
+i2c = I2C(0, scl=Pin(I2C_SCL_PIN), sda=Pin(I2C_SDA_PIN), freq=I2C_FREQ)
+# ▲▲▲ 여기까지 ▲▲▲
+    
+
 class _PWMController:
 
     def __init__(self, i2c, address=PCA9685_ADDRESS):
