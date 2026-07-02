@@ -98,7 +98,7 @@
   <div class="card note">
     <b>사용 방법</b><br>
     1) 포니봇에 <code>ai_gripper_ble.py</code> 실행 → OLED에 <code>BLE: WAITING</code> 표시<br>
-    2) <b>블루투스 연결</b> 버튼 → 목록에서 <code>ESP-ARM</code> 선택<br>
+    2) <b>블루투스 연결</b> 버튼 → 목록에서 <code>ESP-MJL</code> 선택<br>
     3) <b>카메라 시작</b> → 손을 화면에 보이고 엄지·검지를 벌렸다 오므리기<br>
     ⚠️ Web Bluetooth·카메라는 <b>HTTPS</b>에서만 동작합니다(GitHub Pages 권장). Chrome/Edge(데스크톱·안드로이드) 지원, iOS Safari 미지원.<br>
     🔧 집게가 반대로 움직이면 포니봇 코드에서 보내는 값을 <code>90 - angle</code>로 바꾸거나, 아래 <code>INVERT</code>를 <code>true</code>로 하세요.
@@ -151,7 +151,7 @@ async function connectBLE(){
   if(!navigator.bluetooth){ alert('이 브라우저는 Web Bluetooth를 지원하지 않습니다. Chrome/Edge를 사용하세요.'); return; }
   try{
     const device = await navigator.bluetooth.requestDevice({
-      filters:[{ namePrefix:'ESP' }],
+      filters:[{ namePrefix:'ESP-MJL' }],
       optionalServices:[UART_SERVICE]
     });
     device.addEventListener('gattserverdisconnected', ()=>{ rxChar=null; setBleState(false); });
