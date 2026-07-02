@@ -128,7 +128,7 @@ $('btnConnect').onclick = async () => {
   if(!navigator.bluetooth){ setStatus('이 브라우저는 Web Bluetooth 미지원 (Chrome 사용)'); return; }
   try{
     const device  = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: 'ESP' }], optionalServices: [NUS_SERVICE] });
+      filters: [{ namePrefix: 'ESP-MJL' }], optionalServices: [NUS_SERVICE] });
     setStatus('연결 중...');
     const server  = await device.gatt.connect();
     const service = await server.getPrimaryService(NUS_SERVICE);
