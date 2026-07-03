@@ -164,7 +164,7 @@ async function loadModel(){
 async function connectBLE(){
   if(!navigator.bluetooth){ alert('Web Bluetooth 미지원 브라우저입니다. Chrome/Edge를 쓰세요.'); return; }
   try{
-    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'ESP'}],optionalServices:[UART_SERVICE]});
+    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'ESP-MJL'}],optionalServices:[UART_SERVICE]});
     dev.addEventListener('gattserverdisconnected',()=>{rxChar=null;pill('bleState','미연결','no');});
     const srv=await (await dev.gatt.connect()).getPrimaryService(UART_SERVICE);
     rxChar=await srv.getCharacteristic(UART_RX);
