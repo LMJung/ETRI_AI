@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>군집 추종 AI 주행 - PonyBot</title>
+<style>
+  :root{
+    --bg:#0e1726; --card:#16213a; --line:#27375c;
+    --txt:#e8eefc; --muted:#8da3cc; --accent:#34d399; --warn:#f87171; --amber:#f59e0b; --blue:#60a5fa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',-apple-system,sans-serif;}
+  body{background:var(--bg);color:var(--txt);padding:16px;max-width:960px;margin:0 auto;}
+  h1{font-size:20px;margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px;}
+  .row{display:flex;gap:14px;flex-wrap:wrap;}
+  .col{flex:1;min-width:300px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px;}
+  .videowrap{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3;}
+  video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  canvas#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+  button{background:var(--accent);color:#06281c;border:none;border-radius:10px;
+    padding:11px 14px;font-size:14px;font-weight:700;cursor:pointer;}
+  button.sec{background:#22325a;color:var(--txt);}
+  button.stop{background:var(--warn);color:#3d0808;}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;}
+  .ok{background:#0f3d2e;color:var(--accent);}
+  .no{background:#3d1414;color:var(--warn);}
+  .wait{background:#3d2f0f;color:var(--amber);}
+  .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  code{background:#0c1426;padding:2px 6px;border-radius:6px;color:#fbbf24;font-size:12px;}
+  .note{font-size:12px;color:var(--muted);line-height:1.6;}
+  input[type=range]{width:100%;}
+  .cmdbox{text-align:center;padding:14px 8px;border-radius:12px;background:#0c1426;border:1px solid var(--line);}
+  .cmdbox .icon{font-size:44px;line-height:1;}
+  .cmdbox .name{font-size:20px;font-weight:800;margin-top:4px;}
+  .readout{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;text-align:center;}
+  .readout .box{background:#0c1426;border:1px solid var(--line);border-radius:10px;padding:8px 4px;}
+  .readout .v{font-size:22px;font-weight:800;}
+  .readout .k{font-size:11px;color:var(--muted);margin-top:2px;}
+  .set{display:flex;align-items:center;gap:10px;margin:9px 0;}
+  .set label{flex:0 0 128px;font-size:12px;color:var(--muted);}
+  .set .rv{flex:0 0 54px;text-align:right;font-size:13px;font-weight:700;}
+</style>
+</head>
+<body>
+  <h1>🚓 군집 추종 AI 주행</h1>
+  <div class="sub">COCO-SSD 사람 검출 → 좌우 분포 판정 → Web Bluetooth로 포니봇 주행 (사람 없음=직진 · 다수=정지 · 치우침=회전 후 정지)</div>
+
+  <div class="row">
+    <div class="col">
+      <div class="card">
+        <div class="label" style="margin-bottom:6px">① 검출 모델</div>
+        <div class="btns">
+          <button id="btnModel">📦 사람 검출 모델 불러오기</button>
+          <span id="modelState" class="pill no" style="align-self:center">미로딩</span>
+        </div>
+        <div class="note" style="margin-top:6px">브라우저에서 도는 <code>COCO-SSD</code>를 씁니다. 별도 학습·업로드 없이 사람을 검출하고 화면 좌/우 분포로 명령을 만듭니다.</div>
+      </div>
+
+      <div class="card">
+        <div class="label" style="margin-bottom:6px">② 연결 &amp; 시작</div>
+        <div class="videowrap">
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="btns">
+          <button id="btnCam" disabled>📷 카메라 시작</button>
+          <button id="btnBle" class="sec">🔵 블루투스 연결</button>
+          <button id="btnStop" class="stop">🛑 긴급 정지</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <div class="grid3">
+          <div><div class="label">블루투스</div><span id="bleState" class="pill no">미연결</span></div>
+          <div><div class="label">검출</div><span id="aiState" class="pill no">대기</span></div>
+          <div><div class="label">전송</div><span id="autoState" class="pill wait">일시정지</span></div>
+        </div>
+        <div class="btns">
+          <button id="btnAuto" class="sec" style="width:100%">▶️ 자동 전송 시작 / 일시정지</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label" style="margin-bottom:8px">현재 명령</div>
+        <div class="cmdbox">
+          <div class="icon" id="cmdIcon">🛑</div>
+          <div class="name" id="cmdName">stop</div>
+        </div>
+        <div class="readout">
+          <div class="box"><div class="v" id="rN">0</div><div class="k">사람 N</div></div>
+          <div class="box"><div class="v" id="rL">0</div><div class="k">좌 L</div></div>
+          <div class="box"><div class="v" id="rR">0</div><div class="k">우 R</div></div>
+          <div class="box"><div class="v" id="rS" style="font-size:15px">IDLE</div><div class="k">상태</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label" style="margin-bottom:6px">판정 설정</div>
+        <div class="set"><label>다수 기준 N_MANY</label><input id="nMany" type="range" min="1" max="8" value="3"><span class="rv" id="nManyV">3</span></div>
+        <div class="set"><label>중앙 데드밴드</label><input id="dead" type="range" min="0" max="35" value="15"><span class="rv" id="deadV">0.15</span></div>
+        <div class="set"><label>좌우 차 마진</label><input id="margin" type="range" min="1" max="4" value="1"><span class="rv" id="marginV">1</span></div>
+        <div class="set"><label>검출 신뢰도</label><input id="score" type="range" min="30" max="80" value="50"><span class="rv" id="scoreV">50%</span></div>
+        <div class="set"><label>회전 시간(ms)</label><input id="turnMs" type="range" min="200" max="1500" step="50" value="700"><span class="rv" id="turnMsV">700</span></div>
+        <div class="set"><label>쿨다운(ms)</label><input id="cool" type="range" min="500" max="5000" step="100" value="2500"><span class="rv" id="coolV">2500</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card note">
+    <b>동작 규칙</b> — 매 프레임 사람을 검출해 N명과 좌(L)/우(R) 분포를 구하고, 최근 5프레임 다수결로 명령을 결정합니다.<br>
+    · <b>N &lt; 다수기준</b> → <code>forward</code> (순찰·접근 주행)<br>
+    · <b>다수 &amp; 우측 치우침</b>(R−L ≥ 마진) → <code>right:회전ms</code> 1회 전송 → 로봇이 회전 후 자동 정지 → 쿨다운<br>
+    · <b>다수 &amp; 좌측 치우침</b>(L−R ≥ 마진) → <code>left:회전ms</code> → 회전 후 정지<br>
+    · <b>다수 &amp; 균형</b> → <code>stop</code> (군집을 향해 정지·관측)<br>
+    ⚠️ HTTPS(GitHub Pages) + Chrome/Edge(데스크톱·안드로이드)에서만 동작 · iOS Safari 미지원 · 급할 땐 <b>긴급 정지</b>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js" crossorigin="anonymous"></script>
+<script>
+// ===== Nordic UART =====
+const UART_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const UART_RX     ='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+
+// ===== 고정 설정 =====
+const HISTORY_N=5;        // 결정 라벨 다수결 창
+const MAX_BOX=20;         // 검출 상한
+const ICONS={forward:'⬆️', left:'↩️', right:'↪️', stop:'🛑'};
+
+// ===== 상태 =====
+let detector=null;
+let rxChar=null;
+let running=false, autoSend=false;
+let history=[];           // 최근 결정 라벨
+let lastCmd='', lastSend=0;
+let coolUntil=0;          // 이 시각(performance.now)까지는 회전 후 홀드
+let curState='IDLE';
+
+const $=(id)=>document.getElementById(id);
+const video=$('video'), overlay=$('overlay'), octx=overlay.getContext('2d');
+function pill(id,text,cls){ const e=$(id); e.textContent=text; e.className='pill '+cls; }
+
+// ---------- ① 검출 모델 로딩 (COCO-SSD) ----------
+async function loadModel(){
+  pill('modelState','로딩 중...','wait');
+  try{
+    detector=await cocoSsd.load({base:'lite_mobilenet_v2'});  // 가벼운 백본 = 빠름
+    pill('modelState','로딩 완료','ok');
+    $('btnCam').disabled=false;
+  }catch(e){
+    pill('modelState','실패','no');
+    alert('모델 로딩 실패: '+e.message+'\n- 인터넷(CDN) 접속을 확인하세요');
+  }
+}
+
+// ---------- ② BLE ----------
+async function connectBLE(){
+  if(!navigator.bluetooth){ alert('Web Bluetooth 미지원 브라우저입니다. Chrome/Edge를 쓰세요.'); return; }
+  try{
+    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'ESP'}],optionalServices:[UART_SERVICE]});
+    dev.addEventListener('gattserverdisconnected',()=>{rxChar=null;pill('bleState','미연결','no');});
+    const srv=await (await dev.gatt.connect()).getPrimaryService(UART_SERVICE);
+    rxChar=await srv.getCharacteristic(UART_RX);
+    pill('bleState','연결됨','ok');
+  }catch(e){ alert('연결 실패: '+e.message); }
+}
+async function send(text){
+  if(!rxChar) return;
+  try{
+    const msg=new TextEncoder().encode(text);
+    if(rxChar.writeValueWithoutResponse) await rxChar.writeValueWithoutResponse(msg);
+    else await rxChar.writeValue(msg);
+  }catch(e){}
+}
+// 연속 명령(forward/stop): 바뀔 때만 전송
+function pushCmd(cmd){
+  const now=performance.now();
+  if(cmd!==lastCmd && now-lastSend>120){ send(cmd); lastCmd=cmd; lastSend=now; }
+}
+// 1회성 명령(회전): 항상 전송하고 dedupe 리셋
+function sendOnce(cmd){ send(cmd); lastCmd=''; lastSend=performance.now(); }
+
+// ---------- ③ 카메라 + 검출 루프 ----------
+async function startCamera(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'environment'}});
+    video.srcObject=stream; await video.play();
+  }catch(e){ alert('카메라 실패: '+e.message+'\nHTTPS 접속과 카메라 권한을 확인하세요.'); return; }
+  $('btnCam').textContent='📷 작동 중'; $('btnCam').disabled=true;
+  running=true;
+  detectLoop();
+}
+
+// 한 프레임 → 프레임별 결정 라벨(forward/left/right/stop) 산출
+function frameDecision(persons, vw){
+  const N_MANY=+$('nMany').value;
+  const DEAD=(+$('dead').value)/100;         // 0~0.35
+  const MARGIN=+$('margin').value;
+  let L=0,R=0;
+  for(const b of persons){
+    const cx=(b.bbox[0]+b.bbox[2]/2)/vw;     // 정규화 중심 x (0=좌, 1=우)
+    if(cx < 0.5-DEAD) L++;
+    else if(cx > 0.5+DEAD) R++;
+  }
+  const N=persons.length;
+  let label;
+  if(N < N_MANY) label='forward';
+  else if(R-L >= MARGIN) label='right';
+  else if(L-R >= MARGIN) label='left';
+  else label='stop';
+  return {label,N,L,R};
+}
+
+function drawOverlay(persons, vw, vh){
+  const W=overlay.width=overlay.clientWidth, H=overlay.height=overlay.clientHeight;
+  const sx=W/vw, sy=H/vh;
+  octx.clearRect(0,0,W,H);
+  const DEAD=(+$('dead').value)/100;
+  // 좌/우 존 경계선
+  const xl=(0.5-DEAD)*W, xr=(0.5+DEAD)*W;
+  octx.fillStyle='rgba(96,165,250,0.08)'; octx.fillRect(0,0,xl,H);
+  octx.fillStyle='rgba(245,158,11,0.08)'; octx.fillRect(xr,0,W-xr,H);
+  octx.strokeStyle='rgba(255,255,255,0.25)'; octx.lineWidth=1;
+  octx.beginPath(); octx.moveTo(xl,0); octx.lineTo(xl,H); octx.moveTo(xr,0); octx.lineTo(xr,H); octx.stroke();
+  // 사람 박스
+  octx.lineWidth=2; octx.strokeStyle='#34d399'; octx.fillStyle='#34d399'; octx.font='12px sans-serif';
+  for(const b of persons){
+    const x=b.bbox[0]*sx, y=b.bbox[1]*sy, w=b.bbox[2]*sx, h=b.bbox[3]*sy;
+    octx.strokeRect(x,y,w,h);
+    octx.fillText(Math.round(b.score*100)+'%', x+3, y+14);
+  }
+}
+
+async function detectLoop(){
+  while(running){
+    if(detector && video.readyState>=2){
+      const vw=video.videoWidth, vh=video.videoHeight;
+      const scoreMin=(+$('score').value)/100;
+      let dets=[];
+      try{ dets=await detector.detect(video, MAX_BOX); }catch(e){}
+      const persons=dets.filter(d=>d.class==='person' && d.score>=scoreMin);
+
+      drawOverlay(persons, vw, vh);
+      const {label,N,L,R}=frameDecision(persons, vw);
+      $('rN').textContent=N; $('rL').textContent=L; $('rR').textContent=R;
+      pill('aiState','N='+N+' L'+L+' R'+R, N>0?'ok':'wait');
+
+      // 결정 라벨 다수결 (히스테리시스)
+      history.push(label);
+      if(history.length>HISTORY_N) history.shift();
+      const cnt={}; let win=label, wn=0;
+      for(const h of history){ cnt[h]=(cnt[h]||0)+1; if(cnt[h]>wn){wn=cnt[h];win=h;} }
+      const stable=(wn>=Math.ceil(HISTORY_N/2)) ? win : 'stop';
+
+      const now=performance.now();
+      if(now < coolUntil){
+        // 회전 후 홀드 구간: 정지 유지, 재판정 안 함
+        curState='HOLD'; setCmdUI('stop');
+        if(autoSend) pushCmd('stop');
+      }else if(stable==='right' || stable==='left'){
+        // 치우침 → 회전 1회 + 정지 예약 → 쿨다운
+        const TURN=+$('turnMs').value, COOL=+$('cool').value;
+        const cmd=stable+':'+TURN;                 // 예: right:700
+        curState=(stable==='right'?'TURN R':'TURN L'); setCmdUI(stable);
+        if(autoSend){ sendOnce(cmd); }
+        coolUntil=now + TURN + COOL;               // 회전 완료 + 쿨다운 동안 홀드
+        history=[];                                // 창 리셋 → 진동 방지
+      }else{
+        curState=(stable==='forward'?'FORWARD':'STOP'); setCmdUI(stable);
+        if(autoSend) pushCmd(stable);
+      }
+      $('rS').textContent=curState;
+    }
+    await new Promise(r=>setTimeout(r,0));   // COCO-SSD 자체가 무거워 별도 지연 불필요
+  }
+}
+function setCmdUI(cmd){ $('cmdIcon').textContent=ICONS[cmd]||'🛑'; $('cmdName').textContent=cmd; }
+
+// ---------- 이벤트 ----------
+$('btnModel').onclick=loadModel;
+$('btnBle').onclick=connectBLE;
+$('btnCam').onclick=startCamera;
+$('btnAuto').onclick=()=>{
+  autoSend=!autoSend;
+  pill('autoState', autoSend?'전송 중':'일시정지', autoSend?'ok':'wait');
+  if(!autoSend){ send('stop'); lastCmd=''; coolUntil=0; }
+};
+$('btnStop').onclick=()=>{ autoSend=false; pill('autoState','일시정지','wait'); send('stop'); lastCmd=''; coolUntil=0; };
+
+// 슬라이더 값 표시
+$('nMany').oninput=e=>$('nManyV').textContent=e.target.value;
+$('dead').oninput=e=>$('deadV').textContent=(e.target.value/100).toFixed(2);
+$('margin').oninput=e=>$('marginV').textContent=e.target.value;
+$('score').oninput=e=>$('scoreV').textContent=e.target.value+'%';
+$('turnMs').oninput=e=>$('turnMsV').textContent=e.target.value;
+$('cool').oninput=e=>$('coolV').textContent=e.target.value;
+</script>
+</body>
+</html>
