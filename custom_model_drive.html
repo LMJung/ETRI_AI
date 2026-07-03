@@ -108,7 +108,7 @@
   <div class="card note">
     <b>사용 순서</b><br>
     1) 포니봇에서 <code>pony_ble_drive.py</code> 실행 → 셸에 <code>BLE 대기 중</code> 확인<br>
-    2) <b>모델 불러오기</b> → <b>블루투스 연결</b>(<code>ESP-000</code> 선택) → <b>카메라 시작</b><br>
+    2) <b>모델 불러오기</b> → <b>블루투스 연결</b>(<code>ESP-MJL</code> 선택) → <b>카메라 시작</b><br>
     3) <b>자동 전송 시작</b>을 누른 뒤, 학습시킨 표지판 카드를 카메라에 보여주세요<br>
     ⚠️ HTTPS(GitHub Pages)에서만 동작 · Chrome/Edge(데스크톱·안드로이드) · iOS Safari 미지원<br>
     🛡️ 카드를 치우면(=stop 클래스) 로봇이 멈춥니다. 급할 땐 <b>긴급 정지</b> 버튼!
@@ -170,7 +170,7 @@ function buildClassBars(){
 async function connectBLE(){
   if(!navigator.bluetooth){ alert('Web Bluetooth 미지원 브라우저입니다. Chrome/Edge를 쓰세요.'); return; }
   try{
-    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'ESP'}],optionalServices:[UART_SERVICE]});
+    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'ESP-MJL'}],optionalServices:[UART_SERVICE]});
     dev.addEventListener('gattserverdisconnected',()=>{rxChar=null;pill('bleState','미연결','no');});
     const srv=await (await dev.gatt.connect()).getPrimaryService(UART_SERVICE);
     rxChar=await srv.getCharacteristic(UART_RX);
